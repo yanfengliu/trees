@@ -3,6 +3,7 @@ import { Box3, Group, Mesh, MeshStandardMaterial, Vector3 } from 'three';
 import type { GeneratedTree, LeafAnchor, TreeParams, WindUniforms } from '../contracts';
 import { createRng } from '../random';
 import { applyWind, applyWindShadows, disposeWindShadows } from '../wind/wind';
+import { applyPetalLight } from '../foliage/petalLight';
 import { buildBarkGeometry } from './barkMesh';
 import { buildSkeleton } from './skeleton';
 
@@ -16,9 +17,11 @@ export function generateTree(params: TreeParams, wind: WindUniforms): GeneratedT
   const maxSway = Math.max(1e-6, tips[Math.floor(tips.length * 0.8)]);
 
   const geometry = buildBarkGeometry(branches, rng, maxSway);
-  const material = applyWind(
-    new MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.92, metalness: 0 }),
-    wind,
+  // Bark sits mostly in the crown's shade: keep the sky's blue cast off it and lift the shade a little
+  // (light bounced from the blossom and the meadow), so it reads warm grey-brown instead of black.
+  const material = applyPetalLight(
+    applyWind(new MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.92, metalness: 0 }), wind),
+    { neutralAmbient: 0.55, ambientBoost: 1.5, neutralDirect: 0, translucency: 0, glow: 0 },
   );
   const mesh = new Mesh(geometry, material);
   mesh.name = 'bark';

@@ -8,9 +8,10 @@ import type { SkelBranch } from './skeleton';
 const RADIAL = [7, 6, 5, 4, 3];
 const BUMP = [0.13, 0.12, 0.09, 0.05, 0];
 
-const BARK = new Color().setHex(0x564640); // dark warm grey-brown
-const BARK_OLD = new Color().setHex(0x524742); // greyer on the trunk and thick limbs
-const TWIG = new Color().setHex(0x683f33); // young wood is redder
+const BARK = new Color().setHex(0x9a7e6a); // warm dark grey-brown
+const BARK_OLD = new Color().setHex(0x948074); // greyer on the trunk and thick limbs
+const TWIG = new Color().setHex(0xa0604a); // young wood is redder
+const LENTICEL = new Color().setHex(0xbdb3aa); // pale grey bands of cherry bark
 
 export function buildBarkGeometry(branches: SkelBranch[], rng: Rng, maxSway: number): BufferGeometry {
   let tris = 0;
@@ -82,9 +83,9 @@ export function buildBarkGeometry(branches: SkelBranch[], rng: Rng, maxSway: num
       const s1 = s(i + 1);
       for (let k = 0; k < radial; k++) {
         const k1 = (k + 1) % radial;
-        const shade = rowShade * lowDark * (0.86 + 0.24 * rng());
+        const shade = rowShade * lowDark * (0.78 + 0.4 * rng());
         c.copy(base).multiplyScalar(shade);
-        if (rng() < 0.12 && level <= 2) c.lerp(tmp.setRGB(0.09, 0.085, 0.08), 0.5); // pale lenticel patch
+        if (rng() < 0.12 && level <= 2) c.lerp(tmp.copy(LENTICEL).multiplyScalar(shade), 0.45); // pale lenticel patch
         const a0 = rings[i][k], a1 = rings[i][k1], b0 = rings[i + 1][k], b1 = rings[i + 1][k1];
         push(a0, s0, c); push(a1, s0, c); push(b0, s1, c);
         push(a1, s0, c); push(b1, s1, c); push(b0, s1, c);
