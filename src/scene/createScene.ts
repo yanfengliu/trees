@@ -89,7 +89,7 @@ export function createScene(scene: Scene, wind: WindUniforms): SceneWorld {
     u.uGlow.value.copy(state.glow);
     u.uGlowStrength.value = state.glowStrength;
     u.uSunDir.value.copy(toSun);
-    u.uSunColor.value.copy(state.light).lerp(WHITE, 0.2).multiplyScalar(3.5);
+    u.uSunColor.value.copy(state.light).lerp(WHITE, 0.25).multiplyScalar(2.4);
     u.uSunVis.value = smoothstep(-0.04, 0.0, toSun.y);
     u.uMoonDir.value.copy(toMoon);
     u.uMoonVis.value = smoothstep(-0.03, -0.12, toSun.y);

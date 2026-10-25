@@ -25,9 +25,9 @@ export function heightAt(x: number, z: number): number {
 }
 
 const C = (hex: number) => new Color(hex);
-const MEADOW_A = C(0x5f9e38);
-const MEADOW_B = C(0x86bf48);
-const MEADOW_DRY = C(0xa6bd50);
+const MEADOW_A = C(0x5a9640);
+const MEADOW_B = C(0x7cb350);
+const MEADOW_DRY = C(0x9cb45a);
 const VALLEY = C(0x447f30);
 const FAR_HILL = C(0x4f8a4a);
 const MOUNTAIN = C(0x6a8a6c);

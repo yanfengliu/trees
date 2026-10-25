@@ -63,7 +63,7 @@ function setCamera(azimuthDeg: number, elevationDeg: number, distance: number): 
 }
 
 regenerate(params);
-setCamera(30, 8, 2.2);
+setCamera(36, 9, 2.5);
 createUI(params, regenerate);
 
 const clock = new Clock();

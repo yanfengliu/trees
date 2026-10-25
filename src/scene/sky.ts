@@ -45,7 +45,7 @@ void main() {
   float halo = pow(max(s, 0.0), 10.0) * 0.7 + pow(max(s, 0.0), 120.0) * 1.2;
   col += uGlow * uGlowStrength * (band * 0.75 + halo);
   // Sun disc.
-  float disc = smoothstep(0.99950, 0.99966, s) * uSunVis;
+  float disc = smoothstep(0.99958, 0.99972, s) * uSunVis;
   col = mix(col, uSunColor, disc);
   // Moon disc with a soft halo and a crescent shadow.
   float m = dot(d, uMoonDir);
