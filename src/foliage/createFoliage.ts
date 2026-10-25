@@ -1,6 +1,6 @@
 // Leaves. Owned by the foliage-and-wind worker.
-// Blossom clusters and leaf sprigs at the tree's leaf anchors, falling petals and a petal scatter on the ground.
-// Four InstancedMeshes (four draw calls), all deterministic from params.seed.
+// Blossom clusters and leaf sprigs at the tree's leaf anchors, and falling petals. The fallen-petal carpet is the scene's.
+// Three InstancedMeshes (three draw calls), all deterministic from params.seed.
 import { Group } from 'three';
 import type { Foliage, GeneratedTree, TreeParams, WindUniforms } from '../contracts';
 import { createRng } from '../random';
@@ -16,7 +16,7 @@ export function createFoliage(tree: GeneratedTree, params: TreeParams, wind: Win
   const petals = createPetals(crown, rng, wind, params.leafDensity);
   const object = new Group();
   object.name = 'foliage';
-  object.add(blossoms.blossoms, blossoms.leaves, petals.falling, petals.ground);
+  object.add(blossoms.blossoms, blossoms.leaves, petals.falling);
   return {
     object,
     dispose() {

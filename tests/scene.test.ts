@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Box3, Group, Mesh, Scene, Vector2, Vector3 } from 'three';
+import { Box3, Group, InstancedMesh, Matrix4, Mesh, Scene, Vector2, Vector3 } from 'three';
 import type { GeneratedTree, WindUniforms } from '../src/contracts';
 import { createScene, heightAt } from '../src/scene/createScene';
 import { sunDirection } from '../src/scene/timeOfDay';
@@ -69,5 +69,27 @@ describe('scene', () => {
     createScene(b, wind);
     expect(triangles(b)).toEqual({ tris, draws });
     console.log(`scene: ${Math.round(tris)} triangles, ${draws} draw calls`);
+  });
+
+  it('keeps grass short near the trunk so the trunk base and petal carpet show, taller further out', () => {
+    const scene = new Scene();
+    createScene(scene, wind);
+    const grass = scene.getObjectByName('grass') as InstancedMesh;
+    const m = new Matrix4();
+    const p = new Vector3();
+    const s = new Vector3();
+    const near: number[] = [];
+    const far: number[] = [];
+    for (let i = 0; i < grass.count; i++) {
+      grass.getMatrixAt(i, m);
+      p.setFromMatrixPosition(m);
+      s.setFromMatrixScale(m);
+      const r = Math.hypot(p.x, p.z);
+      if (r < 3) near.push(s.y);
+      else if (r > 15 && r < 30) far.push(s.y);
+    }
+    const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
+    expect(near.length).toBeGreaterThan(20);
+    expect(mean(near)).toBeLessThan(0.6 * mean(far));
   });
 });

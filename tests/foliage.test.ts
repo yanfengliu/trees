@@ -4,6 +4,8 @@ import { DEFAULT_PARAMS, type GeneratedTree, type LeafAnchor, type WindUniforms 
 import { createFoliage } from '../src/foliage/createFoliage';
 import { devAnchors } from '../src/foliage/devAnchors';
 import { applyWind, isWindMaterial, windMesh } from '../src/wind/wind';
+import { applyPetalLight, isPetalLit } from '../src/foliage/petalLight';
+import { MeshLambertMaterial } from 'three';
 import { Mesh, BoxGeometry } from 'three';
 
 const wind = (): WindUniforms => ({ uTime: { value: 0 }, uWindStrength: { value: 0.35 }, uWindDirection: { value: new Vector2(1, 0) } });
@@ -26,7 +28,7 @@ describe('createFoliage', () => {
     const a = createFoliage(fakeTree(anchors), DEFAULT_PARAMS, wind());
     const b = createFoliage(fakeTree(anchors), DEFAULT_PARAMS, wind());
     const c = createFoliage(fakeTree(anchors), { ...DEFAULT_PARAMS, seed: DEFAULT_PARAMS.seed + 1 }, wind());
-    for (const name of ['blossoms', 'blossom-leaves', 'falling-petals', 'ground-petals']) {
+    for (const name of ['blossoms', 'blossom-leaves', 'falling-petals']) {
       const ma = byName(a.object, name);
       const mb = byName(b.object, name);
       expect(ma.count).toBe(mb.count);
@@ -62,6 +64,13 @@ describe('createFoliage', () => {
     const total = ms.reduce((sum, m) => sum + triangles(m), 0);
     expect(total).toBeLessThan(80000);
     expect(byName(f.object, 'blossoms').count).toBeGreaterThan(300);
+    f.dispose();
+  });
+
+  it('leaves the fallen-petal carpet to the scene (one ground scatter, not two)', () => {
+    const f = createFoliage(fakeTree(anchors), DEFAULT_PARAMS, wind());
+    expect(f.object.getObjectByName('ground-petals')).toBeUndefined();
+    expect(meshes(f.object).map((m) => m.name).sort()).toEqual(['blossom-leaves', 'blossoms', 'falling-petals']);
     f.dispose();
   });
 
@@ -106,5 +115,24 @@ describe('applyWind', () => {
     expect(mesh.customDepthMaterial).toBeInstanceOf(MeshDepthMaterial);
     expect(isWindMaterial(mesh.customDepthMaterial!)).toBe(true);
     expect(isWindMaterial(mesh.customDistanceMaterial!)).toBe(true);
+  });
+});
+
+describe('applyPetalLight', () => {
+  it('chains after the wind patch and patches the lighting of a lit material', () => {
+    const w = wind();
+    const m = applyPetalLight(applyWind(new MeshLambertMaterial({ flatShading: true }), w), { neutralAmbient: 0.8, translucency: 1 });
+    expect(isPetalLit(m)).toBe(true);
+    expect(isWindMaterial(m)).toBe(true);
+    expect(applyPetalLight(m)).toBe(m); // idempotent
+    expect(m.customProgramCacheKey()).toContain('wind');
+    expect(m.customProgramCacheKey()).toContain('petal-light');
+    const shader = { uniforms: UniformsUtils.clone(ShaderLib.lambert.uniforms), vertexShader: ShaderLib.lambert.vertexShader, fragmentShader: ShaderLib.lambert.fragmentShader } as unknown as WebGLProgramParametersWithUniforms;
+    m.onBeforeCompile(shader, undefined as never);
+    expect(shader.vertexShader).toContain('windOffset');
+    expect(shader.fragmentShader).not.toContain('#include <lights_fragment_begin>');
+    expect(shader.fragmentShader).toContain('uPetalNeutral');
+    expect(shader.fragmentShader).toContain('petalKey = directLight.color');
+    expect((shader.uniforms.uPetalNeutral as { value: number }).value).toBe(0.8);
   });
 });

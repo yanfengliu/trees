@@ -1,5 +1,7 @@
-// Falling petals (animated entirely on the GPU from uTime) and a static petal scatter on the ground.
-import { Color, DoubleSide, InstancedBufferAttribute, InstancedMesh, Matrix4, MeshStandardMaterial, Quaternion, Vector3 } from 'three';
+// Falling petals, animated entirely on the GPU from uTime. The carpet of fallen petals belongs to the scene's meadow,
+// which follows the terrain height and the tree's crown radius.
+import { Color, DoubleSide, InstancedBufferAttribute, InstancedMesh, MeshLambertMaterial } from 'three';
+import { applyPetalLight } from './petalLight';
 import type { WindUniforms } from '../contracts';
 import { range, type Rng } from '../random';
 import type { CrownShape } from './crown';
@@ -7,7 +9,6 @@ import { createPetalGeometry } from './geometry';
 import { BLOSSOM_PALETTE } from './blossoms';
 
 export const FALLING_PETALS = 320;
-export const GROUND_PETALS = 1400;
 /** Petals rest on the ground this many seconds (shrinking away) before they recycle back into the crown. */
 const REST_SECONDS = 3;
 
@@ -60,7 +61,6 @@ vec3 transformed = petalPos + local * aPetalB.w * grow * fade;
 
 export interface PetalMeshes {
   falling: InstancedMesh;
-  ground: InstancedMesh;
   dispose(): void;
 }
 
@@ -79,7 +79,7 @@ export function createPetals(crown: CrownShape, rng: Rng, wind: WindUniforms, de
   }
   fallGeo.setAttribute('aPetalA', new InstancedBufferAttribute(a, 4));
   fallGeo.setAttribute('aPetalB', new InstancedBufferAttribute(b, 4));
-  const fallMat = new MeshStandardMaterial({ color: 0xffffff, flatShading: true, roughness: 0.7, side: DoubleSide, emissive: new Color('#f7c6d4'), emissiveIntensity: 0.12 });
+  const fallMat = new MeshLambertMaterial({ color: 0xffffff, flatShading: true, side: DoubleSide });
   const crownUniforms = {
     uCrownCentre: { value: crown.centre.clone() },
     uCrownRadius: { value: crown.radius },
@@ -93,6 +93,7 @@ export function createPetals(crown: CrownShape, rng: Rng, wind: WindUniforms, de
       .replace('#include <begin_vertex>', PETAL_BEGIN);
   };
   fallMat.customProgramCacheKey = () => 'falling-petals-v1';
+  applyPetalLight(fallMat, { neutralAmbient: 0.6, translucency: 1.1, glow: 0.07 });
   const falling = new InstancedMesh(fallGeo, fallMat, Math.max(1, fallingCount));
   falling.count = fallingCount;
   falling.name = 'falling-petals';
@@ -104,50 +105,12 @@ export function createPetals(crown: CrownShape, rng: Rng, wind: WindUniforms, de
   }
   if (falling.instanceColor) falling.instanceColor.needsUpdate = true;
 
-  // Ground scatter: a pale carpet under the crown, densest near the drip line's centre.
-  const groundGeo = createPetalGeometry();
-  const groundCount = crown.radius > 0 ? Math.round(GROUND_PETALS * Math.max(0, Math.min(1, density))) : 0;
-  const groundMat = new MeshStandardMaterial({ color: 0xffffff, flatShading: true, roughness: 0.9, side: DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
-  const ground = new InstancedMesh(groundGeo, groundMat, Math.max(1, groundCount));
-  ground.count = groundCount;
-  ground.name = 'ground-petals';
-  ground.receiveShadow = true;
-  const m = new Matrix4();
-  const q = new Quaternion();
-  const tilt = new Quaternion();
-  const p = new Vector3();
-  const s = new Vector3();
-  const axis = new Vector3();
-  const reach = crown.radius * 1.2;
-  for (let i = 0; i < groundCount; i++) {
-    const ang = rng() * Math.PI * 2;
-    const rad = reach * Math.pow(rng(), 0.6);
-    p.set(crown.centre.x + Math.cos(ang) * rad, 0.012, crown.centre.z + Math.sin(ang) * rad);
-    q.setFromAxisAngle(new Vector3(0, 1, 0), rng() * Math.PI * 2);
-    axis.set(range(rng, -1, 1), 0, range(rng, -1, 1)).normalize();
-    tilt.setFromAxisAngle(axis, range(rng, -0.25, 0.25));
-    q.premultiply(tilt);
-    const size = range(rng, 0.07, 0.11);
-    s.set(size, size * 0.4, size);
-    m.compose(p, q, s);
-    ground.setMatrixAt(i, m);
-    color.copy(palette[Math.floor(rng() * 5)]).multiplyScalar(range(rng, 0.88, 1.0));
-    ground.setColorAt(i, color);
-  }
-  ground.instanceMatrix.needsUpdate = true;
-  if (ground.instanceColor) ground.instanceColor.needsUpdate = true;
-  ground.computeBoundingSphere();
-
   return {
     falling,
-    ground,
     dispose() {
       fallGeo.dispose();
       fallMat.dispose();
       falling.dispose();
-      groundGeo.dispose();
-      groundMat.dispose();
-      ground.dispose();
     },
   };
 }
