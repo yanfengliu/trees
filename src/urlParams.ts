@@ -1,11 +1,13 @@
 import type { TreeParams } from './contracts';
 
-/** Read ?seed=&age=&time=&wind=&leaves= from a query string, falling back to `base` for anything missing or invalid. */
+/** Read ?seed=&age=&time=&wind=&leaves= from a query string, falling back to `base` for anything missing, empty or invalid. */
 export function paramsFromUrl(search: string, base: TreeParams): TreeParams {
   const q = new URLSearchParams(search);
   const num = (key: string, fallback: number, min: number, max: number): number => {
-    const v = Number(q.get(key));
-    return q.has(key) && Number.isFinite(v) ? Math.min(max, Math.max(min, v)) : fallback;
+    // An empty value (`?seed=`) counts as missing: Number('') would read it as 0.
+    const raw = q.get(key)?.trim() ?? '';
+    const v = Number(raw);
+    return raw !== '' && Number.isFinite(v) ? Math.min(max, Math.max(min, v)) : fallback;
   };
   return {
     seed: Math.round(num('seed', base.seed, 0, 2 ** 31 - 1)),

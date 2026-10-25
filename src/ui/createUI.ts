@@ -1,7 +1,7 @@
 // Controls panel. Owned by the UI worker.
 import GUI from 'lil-gui';
 import type { TreeParams } from '../contracts';
-import { advanceTime, formatClock, nextSeed, queryFromParams } from './urlSync';
+import { advanceTime, clampSeed, formatClock, nextSeed, panelParams, queryFromParams } from './urlSync';
 
 /** One full day of the "cycle day" toggle takes this many real seconds. */
 const DAY_SECONDS = 180;
@@ -51,9 +51,12 @@ export function createUI(params: TreeParams, onChange: (next: TreeParams) => voi
   style.textContent = STYLE;
   document.head.appendChild(style);
 
-  // lil-gui edits this object in place; `current` is what onChange receives.
+  // lil-gui edits `state` in place on every drag step and keystroke. Seed, age and blossoms are copied into `committed`
+  // only when the user lets go, so "Cycle day" ticks and live time or wind changes never apply a half-typed seed.
   const state = { seed: params.seed, age: params.age, timeOfDay: params.timeOfDay, wind: params.wind, leafDensity: params.leafDensity, cycleDay: false, newTree: () => {} };
-  const current = (): TreeParams => ({ seed: state.seed, age: state.age, timeOfDay: state.timeOfDay, wind: state.wind, leafDensity: state.leafDensity });
+  const committed: TreeParams = { ...params };
+  const current = (): TreeParams => panelParams(committed, state);
+  const commit = (key: 'seed' | 'age' | 'leafDensity') => (): void => { committed[key] = state[key]; emit(); };
 
   let urlTimer: ReturnType<typeof setTimeout> | null = null;
   let lastUrlWrite = 0;
@@ -72,12 +75,23 @@ export function createUI(params: TreeParams, onChange: (next: TreeParams) => voi
   const gui = new GUI({ title: 'Cherry blossom', width: 260 });
   gui.domElement.classList.add('trees-gui');
 
-  state.newTree = () => { state.seed = nextSeed(Math.random(), state.seed); seedCtl.updateDisplay(); emit(); };
-  gui.add(state, 'newTree').name('New tree');
+  state.newTree = () => {
+    state.seed = committed.seed = nextSeed(Math.random(), committed.seed);
+    seedCtl.updateDisplay();
+    emit();
+    // Drop focus after a click, so Space raises the camera again instead of pressing the button.
+    if (document.activeElement instanceof HTMLElement && newTreeCtl.domElement.contains(document.activeElement)) document.activeElement.blur();
+  };
+  const newTreeCtl = gui.add(state, 'newTree').name('New tree');
   // Regrowing costs a full rebuild, so seed, age and blossoms apply when the user lets go.
-  const seedCtl = gui.add(state, 'seed').min(0).step(1).name('Seed').onFinishChange(emit);
-  gui.add(state, 'age', 0, 1, 0.01).name('Age').onFinishChange(emit);
-  gui.add(state, 'leafDensity', 0, 1, 0.01).name('Blossoms').onFinishChange(emit);
+  // No .max(): lil-gui turns a field with both min and max into a slider, useless over 2^31 values. Clamp on commit instead.
+  const seedCtl = gui.add(state, 'seed').min(0).step(1).name('Seed').onFinishChange(() => {
+    state.seed = clampSeed(state.seed);
+    seedCtl.updateDisplay();
+    commit('seed')();
+  });
+  gui.add(state, 'age', 0, 1, 0.01).name('Age').onFinishChange(commit('age'));
+  gui.add(state, 'leafDensity', 0, 1, 0.01).name('Blossoms').onFinishChange(commit('leafDensity'));
   const timeCtl = gui.add(state, 'timeOfDay', 0, 24, 0.05).decimals(2).name('Time').onChange(() => { showClock(); emit(); });
   gui.add(state, 'cycleDay').name('Cycle day').onChange(() => { lastTick = performance.now(); });
   gui.add(state, 'wind', 0, 1, 0.01).name('Wind').onChange(emit);

@@ -34,3 +34,20 @@ export function formatClock(hours: number): string {
   const total = Math.round(advanceTime(hours, 0) * 60) % (24 * 60);
   return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
 }
+
+/**
+ * What the panel hands to onChange. lil-gui writes `live` on every drag step and keystroke; seed, age and blossoms
+ * rebuild the tree, so they come from `committed`, which the panel updates only when the user lets go (onFinishChange).
+ * Time and wind are cheap and apply live.
+ */
+export function panelParams(committed: TreeParams, live: TreeParams): TreeParams {
+  return { seed: committed.seed, age: committed.age, leafDensity: committed.leafDensity, timeOfDay: live.timeOfDay, wind: live.wind };
+}
+
+/** Largest seed the panel and the URL accept: the top of a signed 32-bit integer. */
+export const MAX_SEED = 2 ** 31 - 1;
+
+/** A typed seed as the generator gets it: a whole number in 0..MAX_SEED (NaN gives 0). */
+export function clampSeed(seed: number): number {
+  return Number.isFinite(seed) ? Math.min(MAX_SEED, Math.max(0, Math.round(seed))) : 0;
+}

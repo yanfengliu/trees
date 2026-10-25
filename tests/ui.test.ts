@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_PARAMS, type TreeParams } from '../src/contracts';
 import { paramsFromUrl } from '../src/urlParams';
-import { clampPitch, clampPosition, dampToward, forwardFromYawPitch, isTypingTarget, MOVE, moveIntent, wheelImpulse, wishVelocity, yawPitchFromDirection } from '../src/ui/movement';
-import { advanceTime, formatClock, nextSeed, queryFromParams } from '../src/ui/urlSync';
+import { clampPitch, clampPosition, dampToward, forwardFromYawPitch, isTypingTarget, keyBelongsToTarget, MOVE, moveIntent, wheelImpulse, wishVelocity, yawPitchFromDirection } from '../src/ui/movement';
+import { advanceTime, clampSeed, formatClock, MAX_SEED, nextSeed, panelParams, queryFromParams } from '../src/ui/urlSync';
 
 const close = (a: number, b: number, eps = 1e-9): boolean => Math.abs(a - b) < eps;
 
@@ -30,6 +30,23 @@ describe('URL sync', () => {
     expect(nextSeed(0.5, 7)).toBe(500000);
     expect(nextSeed(0.5, 500000)).toBe(500001);
     expect(nextSeed(0.9999999, 0)).toBeLessThan(1_000_000);
+  });
+});
+
+describe('panel params', () => {
+  it('takes seed, age and blossoms from the committed copy and time and wind live', () => {
+    const committed: TreeParams = { seed: 7, age: 0.75, timeOfDay: 17.5, wind: 0.35, leafDensity: 1 };
+    // Mid-edit: the user has typed "12" of "123" into the seed and is dragging age and blossoms; cycle day moved the clock.
+    const live: TreeParams = { seed: 12, age: 0.2, timeOfDay: 18.25, wind: 0.6, leafDensity: 0.4 };
+    expect(panelParams(committed, live)).toEqual({ seed: 7, age: 0.75, timeOfDay: 18.25, wind: 0.6, leafDensity: 1 });
+  });
+  it('clamps a typed seed to 0..2^31-1, the same range the URL accepts', () => {
+    expect(MAX_SEED).toBe(2 ** 31 - 1);
+    expect(clampSeed(99999999999)).toBe(MAX_SEED);
+    expect(clampSeed(-3)).toBe(0);
+    expect(clampSeed(12.4)).toBe(12);
+    expect(clampSeed(Number.NaN)).toBe(0);
+    expect(paramsFromUrl(`?seed=${MAX_SEED + 10}`, DEFAULT_PARAMS).seed).toBe(clampSeed(MAX_SEED + 10));
   });
 });
 
@@ -83,5 +100,13 @@ describe('movement math', () => {
     expect(isTypingTarget({ tagName: 'DIV', isContentEditable: true })).toBe(true);
     expect(isTypingTarget({ tagName: 'CANVAS' })).toBe(false);
     expect(isTypingTarget(null)).toBe(false);
+  });
+  it('leaves Space and Enter to a focused button, and every other key to the camera', () => {
+    expect(keyBelongsToTarget('Space', { tagName: 'BUTTON' })).toBe(true);
+    expect(keyBelongsToTarget('Enter', { tagName: 'button' })).toBe(true);
+    expect(keyBelongsToTarget('KeyW', { tagName: 'BUTTON' })).toBe(false);
+    expect(keyBelongsToTarget('Space', { tagName: 'CANVAS' })).toBe(false);
+    expect(keyBelongsToTarget('KeyW', { tagName: 'INPUT' })).toBe(true);
+    expect(keyBelongsToTarget('Space', null)).toBe(false);
   });
 });

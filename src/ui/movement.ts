@@ -105,3 +105,9 @@ export function isTypingTarget(target: { tagName?: string; isContentEditable?: b
   const tag = (target.tagName ?? '').toUpperCase();
   return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable === true;
 }
+
+/** True when a key press belongs to the focused element, not the camera: any key in a text field, Space or Enter on a button. */
+export function keyBelongsToTarget(code: string, target: { tagName?: string; isContentEditable?: boolean } | null): boolean {
+  if (isTypingTarget(target)) return true;
+  return (target?.tagName ?? '').toUpperCase() === 'BUTTON' && (code === 'Space' || code === 'Enter' || code === 'NumpadEnter');
+}

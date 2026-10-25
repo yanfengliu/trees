@@ -2,7 +2,7 @@
 // Keys: WASD / arrows move on the ground plane, Space/E up, Q/C down, Shift sprints.
 // Left-drag looks around (no pointer lock), the wheel moves along the view direction.
 import type { PerspectiveCamera, Vector3 } from 'three';
-import { clampPitch, clampPosition, dampToward, isTypingTarget, KEYMAP, MOVE, moveIntent, wheelImpulse, wishVelocity, yawPitchFromDirection, type Vec3 } from './movement';
+import { clampPitch, clampPosition, dampToward, isTypingTarget, keyBelongsToTarget, KEYMAP, MOVE, moveIntent, wheelImpulse, wishVelocity, yawPitchFromDirection, type Vec3 } from './movement';
 
 export interface CameraControls {
   /** Advance movement from held keys. */
@@ -32,7 +32,8 @@ export function createCameraControls(camera: PerspectiveCamera, dom: HTMLElement
   }
 
   const onKeyDown = (e: KeyboardEvent): void => {
-    if (e.ctrlKey || e.metaKey || e.altKey || isTypingTarget(e.target as HTMLElement | null)) return;
+    // A focused panel button keeps Space for itself, so Space presses it without also raising the camera.
+    if (e.ctrlKey || e.metaKey || e.altKey || keyBelongsToTarget(e.code, e.target as HTMLElement | null)) return;
     if (!(e.code in KEYMAP)) return;
     held.add(e.code);
     // Space and arrows would scroll the page otherwise.
