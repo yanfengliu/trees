@@ -74,15 +74,32 @@ async function checkInput() {
   const pose = async () => (await page.$eval('canvas', (c) => c.dataset.pose ?? '')).split(',').map(Number);
   const steps = [];
   let failed = 0;
-  // Wait until the damped velocity has died out: the pose is unchanged over 300 ms (frame rate here can be low).
+  // Wait until the damped velocity has died out: the pose is unchanged over SETTLE_FRAMES rendered frames.
+  // Counted in frames, not milliseconds: under SwiftShader one frame can take longer than any fixed wait, and
+  // main.ts caps dt at 0.1 s, so momentum takes many frames to decay however slow they are. Each page
+  // requestAnimationFrame tick runs the app's frame (and so controls.update) exactly once between two reads.
+  const SETTLE_FRAMES = 5;
   const settle = async () => {
-    let last = '';
-    for (let i = 0; i < 40; i++) {
-      await page.waitForTimeout(300);
-      const now = (await pose()).join(',');
-      if (now === last) return;
-      last = now;
-    }
+    const ok = await page.evaluate(async (need) => {
+      const read = () => document.querySelector('canvas')?.dataset.pose ?? '';
+      const tick = () => new Promise((r) => requestAnimationFrame(() => r()));
+      const t0 = performance.now();
+      let last = read(), same = 0;
+      while (same < need && performance.now() - t0 < 60000) {
+        await tick();
+        const now = read();
+        same = now === last ? same + 1 : 0;
+        last = now;
+      }
+      return same >= need;
+    }, SETTLE_FRAMES);
+    if (!ok) throw new Error('camera pose did not settle within 60 s');
+  };
+  // Hold a key for at least `ms` and at least `frames` rendered frames, so a slow frame rate still applies the input.
+  const hold = async (key, ms, frames) => {
+    await page.keyboard.down(key);
+    await Promise.all([page.waitForTimeout(ms), page.evaluate(async (n) => { for (let i = 0; i < n; i++) await new Promise((r) => requestAnimationFrame(() => r())); }, frames)]);
+    await page.keyboard.up(key);
   };
   const shot = async (name) => {
     const file = `${outDir}/input-${name}.png`;
@@ -109,9 +126,9 @@ async function checkInput() {
   const along = (a, b) => (b[0] - a[0]) * -Math.sin(a[3]) + (b[2] - a[2]) * -Math.cos(a[3]);
   const box = await page.$eval('canvas', (c) => { const r = c.getBoundingClientRect(); return { x: r.width / 2, y: r.height / 2 }; });
 
-  await step('hold-w', async () => { await page.keyboard.down('KeyW'); await page.waitForTimeout(1000); await page.keyboard.up('KeyW'); },
+  await step('hold-w', () => hold('KeyW', 1000, 10),
     (a, b) => [along(a, b) > 0.3 && Math.abs(b[1] - a[1]) < 0.05, `forward ${along(a, b).toFixed(2)} m, dy ${(b[1] - a[1]).toFixed(3)}`]);
-  await step('hold-e', async () => { await page.keyboard.down('KeyE'); await page.waitForTimeout(1000); await page.keyboard.up('KeyE'); },
+  await step('hold-e', () => hold('KeyE', 1000, 10),
     (a, b) => [b[1] - a[1] > 0.2, `up ${(b[1] - a[1]).toFixed(2)} m`]);
   await step('drag-look', async () => {
     await page.mouse.move(box.x, box.y);
@@ -124,7 +141,7 @@ async function checkInput() {
   await step('typing-ignored', async () => {
     const field = page.locator('.lil-gui input').first();
     await field.click();
-    await page.keyboard.down('KeyW'); await page.waitForTimeout(500); await page.keyboard.up('KeyW');
+    await hold('KeyW', 500, 5);
     await page.keyboard.press('Escape');
     await page.locator('.lil-gui .lil-title').first().click(); // blur the field without touching the canvas
     await page.locator('.lil-gui .lil-title').first().click();
