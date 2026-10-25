@@ -68,7 +68,9 @@ createUI(params, regenerate);
 
 const clock = new Clock();
 let frozenTime: number | null = null;
+let paused = false;
 function frame(): void {
+  if (paused) return;
   const dt = Math.min(clock.getDelta(), 0.1);
   wind.uTime.value = frozenTime ?? wind.uTime.value + dt;
   rig.update(dt);
@@ -86,12 +88,15 @@ window.addEventListener('resize', () => {
 
 // Test hook for scripts/shots.mjs. Not part of the user-facing app.
 declare global {
-  interface Window { __trees: { setCamera: typeof setCamera; regenerate: typeof regenerate; freezeTime(t: number | null): void; params(): TreeParams; stats(): { leafAnchors: number; height: number } } }
+  interface Window { __trees: { setCamera: typeof setCamera; regenerate: typeof regenerate; freezeTime(t: number | null): void; pause(): void; renderOnce(): void; params(): TreeParams; stats(): { leafAnchors: number; height: number } } }
 }
 window.__trees = {
   setCamera,
   regenerate,
   freezeTime(t) { frozenTime = t; },
+  // Stop the render loop and draw single frames on demand; software WebGL in headless Chromium is too slow for a live loop.
+  pause() { paused = true; },
+  renderOnce() { wind.uTime.value = frozenTime ?? wind.uTime.value; rig.update(0); controls.update(0); renderer.render(scene, camera); },
   params: () => params,
   stats: () => ({ leafAnchors: tree?.leafAnchors.length ?? 0, height: tree?.height ?? 0 }),
 };

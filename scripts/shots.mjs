@@ -49,12 +49,12 @@ try {
   await page.evaluate(() => window.__trees.freezeTime(2));
   if (inputMode) await checkInput();
   else {
+    await page.evaluate(() => window.__trees.pause());
     const views = [...FIXED];
     for (let i = 0; i < randomCount; i++) views.push({ name: `random-${i}`, az: Math.random() * 360, el: 2 + Math.random() * 40, dist: 0.9 + Math.random() * 3 });
     const manifest = [];
     for (const v of views) {
-      await page.evaluate(({ az, el, dist }) => window.__trees.setCamera(az, el, dist), v);
-      await page.waitForTimeout(400);
+      await page.evaluate(({ az, el, dist }) => { window.__trees.setCamera(az, el, dist); window.__trees.renderOnce(); }, v);
       const file = `${outDir}/${v.name}.png`;
       await page.screenshot({ path: file });
       manifest.push({ ...v, file, sha256: createHash('sha256').update(readFileSync(file)).digest('hex') });
