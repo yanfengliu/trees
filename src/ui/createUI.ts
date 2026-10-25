@@ -64,7 +64,11 @@ export function createUI(params: TreeParams, onChange: (next: TreeParams) => voi
     urlTimer = null;
     lastUrlWrite = Date.now();
     const query = queryFromParams(window.location.search, current());
-    history.replaceState(history.state, '', `${window.location.pathname}${query}${window.location.hash}`);
+    try {
+      history.replaceState(history.state, '', `${window.location.pathname}${query}${window.location.hash}`);
+    } catch {
+      // Sandboxed frames (e.g. a hosted demo) can refuse history writes; the scene works without URL sync.
+    }
   };
   const syncUrl = (): void => {
     if (urlTimer) return;
