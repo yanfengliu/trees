@@ -1,0 +1,3 @@
+# Devlog Summary
+
+- 2026-10-25: **The tree can be walked around and tuned from a panel, and the controls are proved through real input** — WASD/arrows, Space/E, Q/C and Shift move a damped fly camera with drag-to-look and wheel zoom; a lil-gui panel drives seed, age, blossoms, time (with a 3-minute "cycle day") and wind and keeps `?seed=&age=&time=&wind=&leaves=` in the URL. `npm run shots -- --input` drove 7 real-input steps green and went red when the typing guard was disabled. Fleet setup (AGENTS.md with canon, CLAUDE.md, devlog, lessons) landed; the canon block came from fleet's own library because the census does not list trees yet. ([detail](detailed/2026-10-25_2026-10-25.md))
