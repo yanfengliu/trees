@@ -2,7 +2,7 @@
 import { Box3, Group, Mesh, MeshStandardMaterial, Vector3 } from 'three';
 import type { GeneratedTree, LeafAnchor, TreeParams, WindUniforms } from '../contracts';
 import { createRng } from '../random';
-import { applyWind } from '../wind/wind';
+import { applyWind, applyWindShadows, disposeWindShadows } from '../wind/wind';
 import { buildBarkGeometry } from './barkMesh';
 import { buildSkeleton } from './skeleton';
 
@@ -23,6 +23,7 @@ export function generateTree(params: TreeParams, wind: WindUniforms): GeneratedT
   const mesh = new Mesh(geometry, material);
   mesh.name = 'bark';
   mesh.castShadow = true;
+  applyWindShadows(mesh, wind);
   mesh.receiveShadow = true;
   const object = new Group();
   object.name = 'tree';
@@ -54,6 +55,7 @@ export function generateTree(params: TreeParams, wind: WindUniforms): GeneratedT
     dispose() {
       geometry.dispose();
       material.dispose();
+      disposeWindShadows(mesh);
     },
   };
 }
