@@ -39,7 +39,7 @@ Integration order: tree, foliage, scene, ui; the coordinator merges and runs the
 - [ ] Time of day changes sun position, sky and light colour from dawn through night.
 - [ ] WASD moves, mouse drag looks around, verified through real key and mouse input in Playwright.
 - [ ] Shots from 8 fixed and 3 random angles reviewed at native resolution, at three times of day and two seeds.
-- [ ] 60 fps class performance: under 150k triangles and under 30 draw calls at default params.
+- [ ] 60 fps class performance: under 150k triangles and under 30 draw calls, at default params and at age 1 for any seed. Both are measured on the main render pass of the whole scene (terrain, meadow, sky, tree and foliage): triangles are index (or vertex) count / 3, times `count` for an InstancedMesh; draw calls are one per visible Mesh, Points or Line; shadow passes are not counted. `tests/budget.test.ts` checks it. After the 2026-10-25 review: 133,851 triangles and 12 draw calls at defaults, 142,566 at the worst tested age-1 seed (18).
 - [ ] Fleet setup: AGENTS.md with canon block, CLAUDE.md = `@AGENTS.md`, devlog, lessons, defect register.
 
 ## Implementation steps

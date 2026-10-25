@@ -109,7 +109,7 @@ export function createSky(): SkyRig {
     uMoonDir: { value: new Vector3(0, -1, 0) }, uMoonVis: { value: 0 },
   };
   const dome = new Mesh(
-    new SphereGeometry(SKY_RADIUS, 48, 24),
+    new SphereGeometry(SKY_RADIUS, 32, 16),
     new ShaderMaterial({ uniforms, vertexShader: skyVertex, fragmentShader: skyFragment, side: BackSide, depthWrite: false, fog: false }),
   );
   dome.name = 'sky';
@@ -183,7 +183,8 @@ function createCloudGeometry(): BufferGeometry {
       const u = puffs === 1 ? 0 : p / (puffs - 1) - 0.5;
       const mid = 1 - Math.abs(u) * 1.2;
       const radius = range(rng, 4.5, 8) * (0.5 + 0.75 * mid);
-      let g: BufferGeometry = new IcosahedronGeometry(1, 1);
+      // The small end puffs use the coarser icosahedron: at 110-230 m they cover a few dozen pixels.
+      let g: BufferGeometry = new IcosahedronGeometry(1, Math.abs(u) >= 0.4 ? 0 : 1);
       g.deleteAttribute('normal');
       g.deleteAttribute('uv');
       g = mergeVertices(g);

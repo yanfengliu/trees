@@ -14,7 +14,7 @@ const PALETTE_WEIGHTS = [0.16, 0.22, 0.24, 0.2, 0.12, 0.06];
 export const LEAF_PALETTE = ['#b8dc6c', '#a2d05a', '#cce884'] as const;
 
 /** Hard cap so foliage stays inside the triangle budget whatever the tree gives us. */
-export const MAX_CLUSTERS = 540;
+export const MAX_CLUSTERS = 510;
 /** Clusters per anchor at leafDensity 1 (before the cap). */
 export const CLUSTERS_PER_ANCHOR = 1.6;
 

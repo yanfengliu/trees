@@ -103,7 +103,7 @@ export interface Meadow {
   scatterPetals(crownRadius: number): void;
 }
 
-const GRASS_COUNT = 6000;
+const GRASS_COUNT = 5200;
 const FLOWER_COUNT = 420;
 const PETAL_COUNT = 2200;
 const ROCK_COUNT = 22;
