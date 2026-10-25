@@ -1,5 +1,5 @@
 // Low-poly geometry builders for blossoms, leaves and petals. All non-indexed so each face keeps its own colour.
-import { BufferGeometry, Float32BufferAttribute, IcosahedronGeometry, Vector3 } from 'three';
+import { BufferGeometry, Float32BufferAttribute, IcosahedronGeometry, OctahedronGeometry, Vector3 } from 'three';
 import { createRng, range, type Rng } from '../random';
 
 /** Deterministic jitter from a position, so duplicated vertices of a non-indexed mesh move together (no cracks). */
@@ -9,60 +9,76 @@ function hash3(x: number, y: number, z: number): number {
 }
 
 /**
- * A blossom puff: several jittered icosahedra merged into one lumpy, faceted bunch, about 1 unit in radius.
- * Faces carry a baked colour: a little per-face variation (some petals paler) and darker undersides (fake occlusion).
+ * A blossom puff, about 1 unit in radius: a faceted core, a few mid-size lobes and a ring of small lobes on the outside,
+ * merged into one lumpy bunch. The small outer lobes give the crown's silhouette finer facets than its body.
+ * Faces carry a baked colour: deeper pink on undersides (fake occlusion), paler on the small outer lobes, some rose faces.
+ * 128 triangles.
  */
-export function createPuffGeometry(seed: number, lobes = 6): BufferGeometry {
+export function createPuffGeometry(seed: number): BufferGeometry {
   const rng = createRng(seed);
   const positions: number[] = [];
   const colors: number[] = [];
-  const base = new IcosahedronGeometry(1, 0);
-  const src = base.getAttribute('position');
+  const ico = new IcosahedronGeometry(1, 0);
+  const oct = new OctahedronGeometry(1, 0);
   const a = new Vector3();
   const b = new Vector3();
   const c = new Vector3();
   const n = new Vector3();
-  for (let l = 0; l < lobes; l++) {
-    let centre: Vector3;
-    let radius: number;
-    if (l === 0) {
-      centre = new Vector3(0, 0.08, 0);
-      radius = 0.58;
-    } else {
-      const az = (l / (lobes - 1)) * Math.PI * 2 + range(rng, -0.5, 0.5);
-      const el = range(rng, -0.35, 0.6);
-      const d = range(rng, 0.45, 0.6);
-      centre = new Vector3(Math.cos(az) * Math.cos(el) * d, Math.sin(el) * d * 0.8, Math.sin(az) * Math.cos(el) * d);
-      radius = range(rng, 0.34, 0.44);
-    }
+  const e1 = new Vector3();
+  const lobes: { centre: Vector3; radius: number; geo: BufferGeometry; pale: number }[] = [];
+  lobes.push({ centre: new Vector3(0, 0.06, 0), radius: 0.56, geo: ico, pale: 0 });
+  for (let l = 0; l < 3; l++) {
+    const az = (l / 3) * Math.PI * 2 + range(rng, -0.4, 0.4);
+    const el = range(rng, -0.25, 0.55);
+    const d = range(rng, 0.38, 0.52);
+    lobes.push({ centre: new Vector3(Math.cos(az) * Math.cos(el) * d, Math.sin(el) * d * 0.8, Math.sin(az) * Math.cos(el) * d), radius: range(rng, 0.32, 0.42), geo: ico, pale: 0.3 });
+  }
+  for (let l = 0; l < 6; l++) {
+    const az = (l / 6) * Math.PI * 2 + Math.PI / 6 + range(rng, -0.35, 0.35);
+    const el = range(rng, -0.45, 0.75);
+    const d = range(rng, 0.6, 0.78);
+    lobes.push({ centre: new Vector3(Math.cos(az) * Math.cos(el) * d, Math.sin(el) * d * 0.75, Math.sin(az) * Math.cos(el) * d), radius: range(rng, 0.17, 0.27), geo: oct, pale: 1 });
+  }
+  const tri: Vector3[] = [a, b, c];
+  lobes.forEach(({ centre, radius, geo, pale }, l) => {
+    const src = geo.getAttribute('position');
     const tilt = range(rng, 0, Math.PI * 2);
     const ct = Math.cos(tilt);
     const st = Math.sin(tilt);
-    const tri: Vector3[] = [a, b, c];
+    const tip = range(rng, -0.5, 0.5);
+    const cx = Math.cos(tip);
+    const sx = Math.sin(tip);
     for (let i = 0; i < src.count; i += 3) {
       for (let k = 0; k < 3; k++) {
         const v = tri[k];
         v.fromBufferAttribute(src, i + k);
-        // Rotate about Y so lobes do not share facet orientation.
+        // Rotate about Y and tip about X so lobes do not share facet orientation.
         const x = v.x * ct - v.z * st;
-        const z = v.x * st + v.z * ct;
-        v.set(x, v.y, z);
-        const j = 0.86 + 0.24 * hash3(v.x + l * 3.1, v.y, v.z);
+        const z0 = v.x * st + v.z * ct;
+        const y = v.y * cx - z0 * sx;
+        const z = v.y * sx + z0 * cx;
+        v.set(x, y, z);
+        const j = 0.84 + 0.28 * hash3(v.x + l * 3.1, v.y, v.z);
         v.multiplyScalar(radius * j).add(centre);
       }
-      n.subVectors(c, b).cross(new Vector3().subVectors(a, b)).normalize();
-      // Baked shade: undersides deeper; some faces a deeper rose (petal hearts), some left pale.
-      const under = 0.74 + 0.26 * Math.min(1, Math.max(0, n.y * 0.5 + 0.6));
+      n.subVectors(c, b).cross(e1.subVectors(a, b)).normalize();
+      // Undersides go a deeper, cooler pink rather than grey; tops and small outer lobes stay near-white.
+      const up = Math.min(1, Math.max(0, n.y * 0.55 + 0.55));
       const roll = rng();
-      const tint = roll < 0.2 ? [1, 0.84, 0.9] : roll < 0.45 ? [1, 0.95, 0.97] : [1, 1, 1];
-      const lift = range(rng, 0.95, 1.03);
+      const rose = roll < 0.12 ? 1 : 0;
+      const bright = (0.86 + 0.14 * up) * range(rng, 0.97, 1.03) * (1 + 0.04 * pale);
+      const deep = (1 - up) * 0.7 + rose * 0.45;
+      const r = Math.min(1, bright * (1 - 0.02 * deep));
+      const g = Math.min(1, bright * (1 - 0.15 * deep));
+      const bl = Math.min(1, bright * (1 - 0.1 * deep));
       for (const v of tri) {
         positions.push(v.x, v.y, v.z);
-        colors.push(Math.min(1, under * lift * tint[0]), Math.min(1, under * lift * tint[1]), Math.min(1, under * lift * tint[2]));
+        colors.push(r, g, bl);
       }
     }
-  }
-  base.dispose();
+  });
+  ico.dispose();
+  oct.dispose();
   const g = new BufferGeometry();
   g.setAttribute('position', new Float32BufferAttribute(positions, 3));
   g.setAttribute('color', new Float32BufferAttribute(colors, 3));

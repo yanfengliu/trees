@@ -1,15 +1,17 @@
 // Blossom clusters and leaf sprigs at the tree's leaf anchors, as two InstancedMeshes.
-import { Color, DoubleSide, InstancedBufferAttribute, InstancedMesh, Matrix4, MeshStandardMaterial, Quaternion, Vector3 } from 'three';
+import { Color, DoubleSide, InstancedBufferAttribute, InstancedMesh, Matrix4, MeshLambertMaterial, Quaternion, Vector3 } from 'three';
 import type { LeafAnchor, WindUniforms } from '../contracts';
 import { range, type Rng } from '../random';
 import { applyWind, applyWindShadows, disposeWindShadows } from '../wind/wind';
 import { createPuffGeometry, createSprigGeometry } from './geometry';
+import { applyPetalLight } from './petalLight';
 import type { CrownShape } from './crown';
 
-/** Sakura palette from near-white to deeper pink, in sRGB. Weighted towards the pale end, as real blossom reads. */
-export const BLOSSOM_PALETTE = ['#ffe9f0', '#ffdbe7', '#fdcadb', '#f9b4cb', '#f49cba', '#ea80a6'] as const;
-const PALETTE_WEIGHTS = [0.14, 0.22, 0.24, 0.2, 0.13, 0.07];
-export const LEAF_PALETTE = ['#a8d46a', '#8cc152', '#c2e07a'] as const;
+/** Sakura palette from pale to mid pink (a narrow range, so no cluster reads grey or magenta), in sRGB. Weighted towards the pale end, as real blossom reads. */
+export const BLOSSOM_PALETTE = ['#ffc6d5', '#ffb9cb', '#fdacc2', '#fa9fb9', '#f692b1', '#ee84a6'] as const;
+const PALETTE_WEIGHTS = [0.16, 0.22, 0.24, 0.2, 0.12, 0.06];
+/** Fresh spring yellow-green: sakura in full bloom shows only a hint of new leaf. */
+export const LEAF_PALETTE = ['#b8dc6c', '#a2d05a', '#cce884'] as const;
 
 /** Hard cap so foliage stays inside the triangle budget whatever the tree gives us. */
 export const MAX_CLUSTERS = 540;
@@ -48,10 +50,9 @@ export function createBlossoms(anchors: LeafAnchor[], leafDensity: number, crown
   }
 
   const puff = createPuffGeometry(Math.floor(rng() * 1e9));
-  const blossomMat = applyWind(
-    new MeshStandardMaterial({ color: 0xffffff, vertexColors: true, flatShading: true, roughness: 0.78, metalness: 0, emissive: new Color('#f7c6d4'), emissiveIntensity: 0.14 }),
-    wind,
-    { flutter: 1.4 },
+  const blossomMat = applyPetalLight(
+    applyWind(new MeshLambertMaterial({ color: 0xffffff, vertexColors: true, flatShading: true }), wind, { flutter: 1.4 }),
+    { neutralAmbient: 0.75, ambientBoost: 1.9, neutralDirect: 0.55, translucency: 0.9, glow: 0.08, sheen: 0.7 },
   );
   const blossoms = new InstancedMesh(puff, blossomMat, Math.max(1, count));
   blossoms.count = count;
@@ -74,7 +75,9 @@ export function createBlossoms(anchors: LeafAnchor[], leafDensity: number, crown
   for (let i = 0; i < count; i++) {
     const anchor = anchors[order[i % order.length]];
     const repeat = Math.floor(i / order.length);
-    const size = anchor.size * fill * range(rng, 0.85, 1.25) * (repeat > 0 ? 0.8 : 1);
+    // Skewed size mix: mostly modest bunches with the odd big one, so the crown reads as masses rather than equal balls.
+    const outer0 = crown.radius > 0 ? Math.min(1, Math.hypot(anchor.position.x - crown.centre.x, anchor.position.z - crown.centre.z) / crown.radius) : 0.5;
+    const size = anchor.size * fill * (0.6 + 0.62 * Math.pow(rng(), 1.6)) * (1.12 - 0.3 * outer0) * (repeat > 0 ? 0.8 : 1);
     // Extra clusters around the same anchor spread sideways and droop, filling gaps between anchors.
     const spread = repeat === 0 ? 0.25 : 0.75;
     p.set(range(rng, -1, 1), range(rng, -0.6, 0.35), range(rng, -1, 1)).multiplyScalar(size * spread).add(anchor.position);
@@ -93,12 +96,12 @@ export function createBlossoms(anchors: LeafAnchor[], leafDensity: number, crown
     const height01 = crown.height > 0 ? (p.y - crown.minY) / crown.height : 0.5;
     const outer = crown.radius > 0 ? Math.min(1, Math.hypot(p.x - crown.centre.x, p.z - crown.centre.z) / crown.radius) : 0.5;
     const depth = Math.min(1, 0.55 * height01 + 0.45 * outer);
-    const light = 0.8 + 0.22 * depth;
+    const light = 0.86 + 0.18 * depth;
     color.multiplyScalar(light);
     color.offsetHSL(range(rng, -0.012, 0.012), 0, range(rng, -0.02, 0.02));
     blossoms.setColorAt(i, color);
 
-    if (rng() < 0.08) leafSpots.push({ pos: p.clone(), out: anchor.direction.clone(), sway: anchor.sway, size });
+    if (rng() < 0.045) leafSpots.push({ pos: p.clone(), out: anchor.direction.clone(), sway: anchor.sway, size });
   }
   puff.setAttribute('aSway', new InstancedBufferAttribute(sway, 1));
   blossoms.instanceMatrix.needsUpdate = true;
@@ -109,7 +112,7 @@ export function createBlossoms(anchors: LeafAnchor[], leafDensity: number, crown
   // Fresh green leaves, sparingly: a few sprigs poking out of some clusters.
   const sprig = createSprigGeometry();
   const leafCount = leafSpots.length * 2;
-  const leafMat = applyWind(new MeshStandardMaterial({ color: 0xffffff, flatShading: true, roughness: 0.7, side: DoubleSide }), wind, { flutter: 2 });
+  const leafMat = applyPetalLight(applyWind(new MeshLambertMaterial({ color: 0xffffff, flatShading: true, side: DoubleSide }), wind, { flutter: 2 }), { neutralAmbient: 0.4, translucency: 1.2, glow: 0.08 });
   const leaves = new InstancedMesh(sprig, leafMat, Math.max(1, leafCount));
   leaves.count = leafCount;
   leaves.name = 'blossom-leaves';
@@ -123,10 +126,10 @@ export function createBlossoms(anchors: LeafAnchor[], leafDensity: number, crown
     const spot = leafSpots[i >> 1];
     // Point outward-ish from the cluster, with a downward lean so they hang from beneath the blossom.
     dir.set(range(rng, -1, 1), range(rng, -0.6, 0.5), range(rng, -1, 1)).normalize().addScaledVector(spot.out, 0.6).normalize();
-    p.copy(spot.pos).addScaledVector(dir, spot.size * range(rng, 0.55, 0.85));
+    p.copy(spot.pos).addScaledVector(dir, spot.size * range(rng, 0.7, 0.95));
     q.setFromUnitVectors(up, dir);
     q.multiply(new Quaternion().setFromAxisAngle(up, rng() * Math.PI * 2));
-    const ls = range(rng, 0.9, 1.4);
+    const ls = range(rng, 0.5, 0.75);
     s.set(ls, ls, ls);
     m.compose(p, q, s);
     leaves.setMatrixAt(i, m);
