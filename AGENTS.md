@@ -4,7 +4,7 @@
 
 A procedurally generated low-poly cherry blossom tree on a grassy hill under a sky, swaying in the wind, with a time-of-day setting, explored with WASD and the mouse. It runs locally with `npm run dev`; there is no hosting.
 
-- **Stack:** Vite + TypeScript + Three.js, no framework; lil-gui for the panel; vitest for unit tests; Playwright (preinstalled globally, not a dependency) for `scripts/shots.mjs`. Node 22 or newer (`package.json` `engines`).
+- **Stack:** Vite + TypeScript + Three.js, no framework; lil-gui for the panel; vitest for unit tests; Playwright (preinstalled globally, not a dependency) for `scripts/shots.mjs`. Node 24 (`.nvmrc`, `package.json` `engines` `>=24`), the fleet baseline.
 - **Non-goals:** hosting or publishing, other species, seasons, realistic rendering, mobile touch controls (`docs/work/0_first-tree/plan.md`).
 - **Repo rules:** [`docs/policies/local-rules.md`](docs/policies/local-rules.md).
 
@@ -68,11 +68,11 @@ Obtain independent, preferably read-only review for substantial or high-risk cha
 
 ## Gates
 
-Run before every commit, from the repo root:
+Run before every commit, from the repo root. Node 24 is the declared version, but there is no CI: the local agent machine ran these gates on Node 22.22, so Node 24 is not CI-proven (canon R28), and `engines` is advisory there.
 
 - `npm run build` — `tsc --noEmit` then `vite build`; must pass with no type errors.
 - `npm test` — vitest over `tests/`.
-- `npm run shots -- --label <name>` — renders 8 fixed and 3 random views into `shots/<name>/` from the built `dist/` (run `npm run build` first) and fails on any page or console error. Read the PNGs at native resolution for any visual change. Add `--input` to drive the camera and panel through real key, mouse, wheel and click events; it fails unless each step moves the camera or changes the params. Use `--port` when another worker holds 4173.
+- `npm run shots -- --label <name>` — renders 8 fixed and 3 random views into `shots/<name>/` from the built `dist/` (run `npm run build` first) with SwiftShader software WebGL, and fails on any page error, console error or console warning. It shows the picture, not the look on a real GPU or the frame rate. Read the PNGs at native resolution for any visual change. Add `--input` to drive the camera and panel through real key, mouse, wheel and click events; it fails unless each step moves the camera or changes the params, and it checks that a half-typed seed applies nothing and that Space on a focused button does not move the camera. Use `--port` when another worker holds 4173.
 - `npm audit --audit-level=high` — dependency audit; also with `--omit=dev`.
 
 ## Invariants & boundaries
@@ -80,7 +80,7 @@ Run before every commit, from the repo root:
 - `src/contracts.ts` is the shared interface between modules and changes only through the coordinator. `src/main.ts` wires modules and owns `window.__trees`, the shots hook. Each module lives in its own folder (`src/tree/`, `src/foliage/`, `src/scene/`, `src/ui/`) and talks to others only through the contracts.
 - `src/shading/` is shared code owned by the coordinator, like `src/contracts.ts`: the wind, petal-light and up-facing-normals shader patches that several modules apply. Every patch edits three.js chunks through `replaceChunk`, which throws when a needle is missing, and `tests/shading.test.ts` runs each patch against the real ShaderLib sources.
 - Generation is a pure function of `TreeParams`: every random draw goes through a seeded `src/random.ts` generator, never `Math.random`. The same params always grow the same tree. (The panel's "New tree" button picks a new seed with `Math.random`; that is user input, not generation.)
-- Budgets at default params: under 150k triangles and under 30 draw calls (`docs/work/0_first-tree/plan.md`).
+- Render budget: under 150k main-pass triangles and under 30 main-pass draw calls, at default params and for every seed at age 1 (`docs/work/0_first-tree/plan.md`). Triangles count index (or vertex) count / 3, times `count` for an InstancedMesh; draw calls count one per visible Mesh, Points or Line. Shadow passes are not counted. `tests/budget.test.ts` builds scene, tree and foliage together and checks both.
 - The URL query `?seed=&age=&time=&wind=&leaves=` is the shareable state: `src/urlParams.ts` reads it and `src/ui/urlSync.ts` writes it; keep the two round-tripping (`tests/ui.test.ts`).
 - The camera stays above `y = 0.3` and within 80 m of the origin (`src/ui/movement.ts`).
 
