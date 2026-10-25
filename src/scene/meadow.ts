@@ -174,7 +174,7 @@ export function createMeadow(wind: WindUniforms): Meadow {
   }
   finalize(flowers);
 
-  const petalMat = upFacingNormals(new MeshLambertMaterial({ vertexColors: true, side: DoubleSide }));
+  const petalMat = upFacingNormals(new MeshLambertMaterial({ vertexColors: true, side: DoubleSide, emissive: 0x1c0a0e }));
   const petals = new InstancedMesh(petalGeometry(), petalMat, PETAL_COUNT);
   petals.name = 'fallen-petals';
   petals.receiveShadow = true;
@@ -201,7 +201,7 @@ export function createMeadow(wind: WindUniforms): Meadow {
 
   function scatterPetals(crownRadius: number): void {
     const pr = createRng(5150);
-    const pinks = [0xffb8cc, 0xf59ab8, 0xffd0de, 0xee8fb0].map((h) => new Color(h));
+    const pinks = [0xffc2c6, 0xf8a6b0, 0xffd6d8, 0xf29aa6].map((h) => new Color(h));
     const spread = Math.max(1.5, crownRadius * 1.25);
     for (let i = 0; i < PETAL_COUNT; i++) {
       // Gaussian-ish fall-off under the crown, drifted a little downwind.
