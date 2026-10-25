@@ -6,8 +6,9 @@ import {
 import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { WindUniforms } from '../contracts';
 import { createRng, range, type Rng } from '../random';
-import { applyWind } from '../wind/wind';
-import { applyPetalLight } from '../foliage/petalLight';
+import { applyWind } from '../shading/wind';
+import { applyPetalLight } from '../shading/petalLight';
+import { upFacingNormals } from '../shading/upFacingNormals';
 import { smoothstep } from './noise';
 import { heightAt } from './terrain';
 
@@ -114,21 +115,6 @@ function sampleRadius(rng: Rng, min: number, max: number): number {
     const density = 0.1 + 0.9 * Math.exp(-((r / 15) ** 2));
     if (rng() < density) return r;
   }
-}
-
-/**
- * Light thin geometry with its own (upward) normal on both faces, so back faces of blades and petals
- * are not lit as if they faced the soil. Chains any onBeforeCompile the wind patch installed.
- */
-function upFacingNormals<M extends Material>(material: M): M {
-  const prev = material.onBeforeCompile;
-  const prevKey = material.customProgramCacheKey.bind(material);
-  material.onBeforeCompile = (shader, renderer) => {
-    prev.call(material, shader, renderer);
-    shader.fragmentShader = shader.fragmentShader.replace('#include <normal_fragment_begin>', 'float faceDirection = 1.0;\nvec3 normal = normalize( vNormal );');
-  };
-  material.customProgramCacheKey = () => `${prevKey()}|up-normals`;
-  return material;
 }
 
 export function createMeadow(wind: WindUniforms): Meadow {

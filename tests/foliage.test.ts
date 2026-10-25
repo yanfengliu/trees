@@ -3,8 +3,8 @@ import { Box3, Group, InstancedMesh, MeshDepthMaterial, MeshStandardMaterial, Sh
 import { DEFAULT_PARAMS, type GeneratedTree, type LeafAnchor, type WindUniforms } from '../src/contracts';
 import { createFoliage } from '../src/foliage/createFoliage';
 import { devAnchors } from '../src/foliage/devAnchors';
-import { applyWind, isWindMaterial, windMesh } from '../src/wind/wind';
-import { applyPetalLight, isPetalLit } from '../src/foliage/petalLight';
+import { applyWind, isWindMaterial, windMesh } from '../src/shading/wind';
+import { applyPetalLight, isPetalLit } from '../src/shading/petalLight';
 import { MeshLambertMaterial } from 'three';
 import { Mesh, BoxGeometry } from 'three';
 

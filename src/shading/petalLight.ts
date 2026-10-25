@@ -1,4 +1,4 @@
-// Petal lighting for blossoms, leaves and petals: thin, pale, translucent surfaces.
+// Petal lighting for blossoms, leaves and petals: thin, pale, translucent surfaces. Shared shading code, owned by the coordinator.
 // Patches a built-in lit material's fragment shader so that
 // - ambient (hemisphere) light, and a little of the key light, is pulled towards its own luminance, so a blue sky or a violet dusk does not turn pink to mauve;
 // - light from the key (directional) light shines through the surface when seen against the light (back-lit glow);
@@ -6,6 +6,7 @@
 // - a little self-glow in the surface's own colour keeps the crown softly readable at night.
 // Chains any onBeforeCompile already installed (for example the wind patch), and keeps a stable program cache key.
 import { ShaderChunk, type Material } from 'three';
+import { replaceChunk } from './replaceChunk';
 
 export interface PetalLightOptions {
   /** 0..1: how far ambient light is pulled towards neutral grey of the same luminance (default 0.6). */
@@ -25,10 +26,11 @@ export interface PetalLightOptions {
 const VERSION = 'petal-light-v1';
 
 const DIR_INFO = 'getDirectionalLightInfo( directionalLight, directLight );';
-if (!ShaderChunk.lights_fragment_begin.includes(DIR_INFO)) throw new Error(`petalLight: three's lights_fragment_begin chunk no longer contains "${DIR_INFO}"; update the patch for this three version`);
-const LIGHTS_BEGIN = ShaderChunk.lights_fragment_begin.replace(
+const LIGHTS_BEGIN = replaceChunk(
+  ShaderChunk.lights_fragment_begin,
   DIR_INFO,
   `${DIR_INFO}\n\t\tdirectLight.color = mix( directLight.color, vec3( dot( directLight.color, vec3( 0.2126, 0.7152, 0.0722 ) ) ), uPetalNeutralDirect );\n\t\tpetalKey = directLight.color;`,
+  'applyPetalLight (ShaderChunk.lights_fragment_begin)',
 );
 
 const LIGHT_CHUNK = /* glsl */ `
@@ -69,10 +71,12 @@ export function applyPetalLight<M extends Material>(material: M, options: PetalL
   material.onBeforeCompile = (shader, renderer) => {
     previous(shader, renderer);
     Object.assign(shader.uniforms, uniforms);
-    shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', '#include <common>\nuniform float uPetalNeutral;\nuniform float uPetalAmbient;\nuniform float uPetalNeutralDirect;\nuniform float uPetalTranslucency;\nuniform float uPetalGlow;\nuniform float uPetalSheen;')
-      .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += diffuseColor.rgb * uPetalGlow;')
-      .replace('#include <lights_fragment_begin>', LIGHT_CHUNK);
+    const who = `applyPetalLight (${material.type} fragment)`;
+    let fs = shader.fragmentShader;
+    fs = replaceChunk(fs, '#include <common>', '#include <common>\nuniform float uPetalNeutral;\nuniform float uPetalAmbient;\nuniform float uPetalNeutralDirect;\nuniform float uPetalTranslucency;\nuniform float uPetalGlow;\nuniform float uPetalSheen;', who);
+    fs = replaceChunk(fs, '#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += diffuseColor.rgb * uPetalGlow;', who);
+    fs = replaceChunk(fs, '#include <lights_fragment_begin>', LIGHT_CHUNK, who);
+    shader.fragmentShader = fs;
   };
   material.customProgramCacheKey = () => `${previousKey()}|${VERSION}`;
   material.userData.petalLight = VERSION;

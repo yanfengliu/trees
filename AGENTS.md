@@ -77,7 +77,8 @@ Run before every commit, from the repo root:
 
 ## Invariants & boundaries
 
-- `src/contracts.ts` is the shared interface between modules and changes only through the coordinator. `src/main.ts` wires modules and owns `window.__trees`, the shots hook. Each module lives in its own folder (`src/tree/`, `src/foliage/`, `src/wind/`, `src/scene/`, `src/ui/`) and talks to others only through the contracts.
+- `src/contracts.ts` is the shared interface between modules and changes only through the coordinator. `src/main.ts` wires modules and owns `window.__trees`, the shots hook. Each module lives in its own folder (`src/tree/`, `src/foliage/`, `src/scene/`, `src/ui/`) and talks to others only through the contracts.
+- `src/shading/` is shared code owned by the coordinator, like `src/contracts.ts`: the wind, petal-light and up-facing-normals shader patches that several modules apply. Every patch edits three.js chunks through `replaceChunk`, which throws when a needle is missing, and `tests/shading.test.ts` runs each patch against the real ShaderLib sources.
 - Generation is a pure function of `TreeParams`: every random draw goes through a seeded `src/random.ts` generator, never `Math.random`. The same params always grow the same tree. (The panel's "New tree" button picks a new seed with `Math.random`; that is user input, not generation.)
 - Budgets at default params: under 150k triangles and under 30 draw calls (`docs/work/0_first-tree/plan.md`).
 - The URL query `?seed=&age=&time=&wind=&leaves=` is the shareable state: `src/urlParams.ts` reads it and `src/ui/urlSync.ts` writes it; keep the two round-tripping (`tests/ui.test.ts`).

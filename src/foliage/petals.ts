@@ -1,7 +1,8 @@
 // Falling petals, animated entirely on the GPU from uTime. The carpet of fallen petals belongs to the scene's meadow,
 // which follows the terrain height and the tree's crown radius.
 import { Color, DoubleSide, InstancedBufferAttribute, InstancedMesh, MeshLambertMaterial } from 'three';
-import { applyPetalLight } from './petalLight';
+import { applyPetalLight } from '../shading/petalLight';
+import { replaceChunk } from '../shading/replaceChunk';
 import type { WindUniforms } from '../contracts';
 import { range, type Rng } from '../random';
 import type { CrownShape } from './crown';
@@ -88,9 +89,8 @@ export function createPetals(crown: CrownShape, rng: Rng, wind: WindUniforms, de
   };
   fallMat.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, crownUniforms, { uTime: wind.uTime, uWindStrength: wind.uWindStrength, uWindDirection: wind.uWindDirection });
-    shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', `#include <common>\n${PETAL_GLSL}`)
-      .replace('#include <begin_vertex>', PETAL_BEGIN);
+    const who = 'falling petals (MeshLambertMaterial vertex)';
+    shader.vertexShader = replaceChunk(replaceChunk(shader.vertexShader, '#include <common>', `#include <common>\n${PETAL_GLSL}`, who), '#include <begin_vertex>', PETAL_BEGIN, who);
   };
   fallMat.customProgramCacheKey = () => 'falling-petals-v1';
   applyPetalLight(fallMat, { neutralAmbient: 0.6, translucency: 1.1, glow: 0.07 });

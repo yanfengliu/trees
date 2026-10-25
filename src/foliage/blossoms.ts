@@ -2,9 +2,9 @@
 import { Color, DoubleSide, InstancedBufferAttribute, InstancedMesh, Matrix4, MeshLambertMaterial, Quaternion, Vector3 } from 'three';
 import type { LeafAnchor, WindUniforms } from '../contracts';
 import { range, type Rng } from '../random';
-import { applyWind, applyWindShadows, disposeWindShadows } from '../wind/wind';
+import { applyWind, applyWindShadows, disposeWindShadows } from '../shading/wind';
 import { createPuffGeometry, createSprigGeometry } from './geometry';
-import { applyPetalLight } from './petalLight';
+import { applyPetalLight } from '../shading/petalLight';
 import type { CrownShape } from './crown';
 
 /** Sakura palette from pale to mid pink (a narrow range, so no cluster reads grey or magenta), in sRGB. Weighted towards the pale end, as real blossom reads. */

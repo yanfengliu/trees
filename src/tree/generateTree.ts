@@ -2,8 +2,8 @@
 import { Box3, Group, Mesh, MeshStandardMaterial, Vector3 } from 'three';
 import type { GeneratedTree, LeafAnchor, TreeParams, WindUniforms } from '../contracts';
 import { createRng } from '../random';
-import { applyWind, applyWindShadows, disposeWindShadows } from '../wind/wind';
-import { applyPetalLight } from '../foliage/petalLight';
+import { applyWind, applyWindShadows, disposeWindShadows } from '../shading/wind';
+import { applyPetalLight } from '../shading/petalLight';
 import { buildBarkGeometry } from './barkMesh';
 import { buildSkeleton } from './skeleton';
 

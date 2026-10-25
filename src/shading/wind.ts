@@ -1,4 +1,4 @@
-// Wind shader injection. Owned by the foliage-and-wind worker.
+// Wind shader injection. Shared shading code, owned by the coordinator (see AGENTS.md).
 //
 // applyWind patches a built-in material's vertex shader so vertices carrying a float attribute `aSway` bend in world space:
 // a slow, large sway (plus a steady lean that grows with wind strength) and a faster, small flutter. Phase varies with
@@ -10,6 +10,7 @@
 // gives the mesh a wind-patched customDepthMaterial and customDistanceMaterial.
 import { MeshDepthMaterial, MeshDistanceMaterial, type Material, type Mesh } from 'three';
 import type { WindUniforms } from '../contracts';
+import { replaceChunk } from './replaceChunk';
 
 export interface WindOptions {
   /**
@@ -117,10 +118,13 @@ export function applyWind<M extends Material>(material: M, uniforms: WindUniform
     shader.uniforms.uWindStrength = uniforms.uWindStrength;
     shader.uniforms.uWindDirection = uniforms.uWindDirection;
     shader.uniforms.uWindFlutter = flutterUniform;
-    shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', `#include <common>\n${WIND_GLSL}`)
-      .replace('#include <project_vertex>', projectChunk(instancePhase))
-      .replace('#include <worldpos_vertex>', WORLDPOS_CHUNK);
+    const who = `applyWind (${material.type} vertex)`;
+    let vs = shader.vertexShader;
+    vs = replaceChunk(vs, '#include <common>', `#include <common>\n${WIND_GLSL}`, who);
+    vs = replaceChunk(vs, '#include <project_vertex>', projectChunk(instancePhase), who);
+    // MeshDepthMaterial computes no world position, so it alone has no worldpos chunk to swap.
+    if (!(material as Material & { isMeshDepthMaterial?: boolean }).isMeshDepthMaterial) vs = replaceChunk(vs, '#include <worldpos_vertex>', WORLDPOS_CHUNK, who);
+    shader.vertexShader = vs;
   };
   // A stable key: every wind material of the same kind shares one program (flutter is a uniform, not a define).
   const key = `${WIND_VERSION}:${instancePhase ? 'ip' : 'vp'}`;
