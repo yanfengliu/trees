@@ -1,5 +1,5 @@
 // App wiring. Owned by the coordinator. Modules plug in through src/contracts.ts.
-import { ACESFilmicToneMapping, Clock, PCFSoftShadowMap, PerspectiveCamera, Scene, SRGBColorSpace, Vector2, Vector3, WebGLRenderer } from 'three';
+import { ACESFilmicToneMapping, PCFShadowMap, PerspectiveCamera, Scene, SRGBColorSpace, Timer, Vector2, Vector3, WebGLRenderer } from 'three';
 import { DEFAULT_PARAMS, type Foliage, type GeneratedTree, type TreeParams, type WindUniforms } from './contracts';
 import { generateTree } from './tree/generateTree';
 import { createFoliage } from './foliage/createFoliage';
@@ -14,7 +14,8 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.outputColorSpace = SRGBColorSpace;
 renderer.toneMapping = ACESFilmicToneMapping;
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = PCFSoftShadowMap;
+// three r186 removed PCFSoftShadowMap (it fell back to this with a warning); PCFShadowMap filters with hardware PCF.
+renderer.shadowMap.type = PCFShadowMap;
 document.body.appendChild(renderer.domElement);
 
 const scene = new Scene();
@@ -66,12 +67,14 @@ regenerate(params);
 setCamera(36, 9, 2.5);
 createUI(params, regenerate);
 
-const clock = new Clock();
+const timer = new Timer();
+timer.connect(document); // Page Visibility: no huge step after the tab was hidden
 let frozenTime: number | null = null;
 let paused = false;
-function frame(): void {
+function frame(timestamp?: number): void {
   if (paused) return;
-  const dt = Math.min(clock.getDelta(), 0.1);
+  timer.update(timestamp);
+  const dt = Math.min(timer.getDelta(), 0.1);
   wind.uTime.value = frozenTime ?? wind.uTime.value + dt;
   rig.update(dt);
   controls.update(dt);
@@ -88,7 +91,7 @@ window.addEventListener('resize', () => {
 
 // Test hook for scripts/shots.mjs. Not part of the user-facing app.
 declare global {
-  interface Window { __trees: { setCamera: typeof setCamera; regenerate: typeof regenerate; freezeTime(t: number | null): void; pause(): void; renderOnce(): void; params(): TreeParams; stats(): { leafAnchors: number; height: number } } }
+  interface Window { __trees: { setCamera: typeof setCamera; regenerate: typeof regenerate; freezeTime(t: number | null): void; pause(): void; renderOnce(): void; params(): TreeParams; stats(): { leafAnchors: number; height: number; crownRadius: number } } }
 }
 window.__trees = {
   setCamera,
@@ -98,6 +101,6 @@ window.__trees = {
   pause() { paused = true; },
   renderOnce() { wind.uTime.value = frozenTime ?? wind.uTime.value; rig.update(0); controls.update(0); renderer.render(scene, camera); },
   params: () => params,
-  stats: () => ({ leafAnchors: tree?.leafAnchors.length ?? 0, height: tree?.height ?? 0 }),
+  stats: () => ({ leafAnchors: tree?.leafAnchors.length ?? 0, height: tree?.height ?? 0, crownRadius: tree?.crownRadius ?? 0 }),
 };
 document.body.dataset.ready = 'true';

@@ -1,6 +1,9 @@
 // Render the app headlessly from fixed and random camera angles into shots/<label>/.
-// Usage: node scripts/shots.mjs [--label name] [--query "seed=7&season=autumn"] [--random N] [--port 4173] [--input]
+// Usage: node scripts/shots.mjs [--label name] [--query "seed=7&age=1&time=12"] [--random N] [--port 4173] [--input]
+// It serves and renders whatever dist/ holds, so run `npm run build` first or it shows a stale build.
+// Rendering is SwiftShader software WebGL in headless Chromium: it says nothing about the look on a real GPU or the frame rate.
 // Bound: proves only what the saved PNGs show for the given query, at 1280x800, with wind time frozen at t=2s.
+// Fails on any page error, console error or console warning (none are allow-listed; add one to WARNING_ALLOW with a reason).
 // --input instead drives the camera through real Playwright key, mouse and wheel events and fails unless each
 // step changed the pose the controls mirror into canvas[data-pose] ("x,y,z,yaw,pitch") and the frame's hash.
 // It proves the input wiring and direction of motion in headless Chromium, not feel, speed at 60 fps or touch input.
@@ -28,7 +31,8 @@ const FIXED = [
   { name: 'back', az: 180, el: 8, dist: 2.2 },
   { name: 'low-hero', az: 30, el: 2, dist: 1.4 },
   { name: 'high', az: 20, el: 45, dist: 2.6 },
-  { name: 'canopy-close', az: 60, el: 25, dist: 0.9 },
+  // Just outside the crown edge, slightly below the blossom, looking in: shows branch structure under the blossoms.
+  { name: 'crown-edge', az: 60, el: -6, edge: 1.0 },
   { name: 'far', az: 30, el: 10, dist: 4.5 },
 ];
 
@@ -40,9 +44,15 @@ await new Promise((resolve, reject) => {
 
 const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
 const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+/** Console warnings that may appear without failing the run, as regular expressions with the reason. Keep it empty if you can. */
+const WARNING_ALLOW = [];
 const errors = [];
+const warnings = [];
 page.on('pageerror', (e) => errors.push(String(e)));
-page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
+page.on('console', (m) => {
+  if (m.type() === 'error') errors.push(m.text());
+  else if (m.type() === 'warning' && !WARNING_ALLOW.some(({ pattern }) => pattern.test(m.text()))) warnings.push(m.text());
+});
 try {
   await page.goto(`http://localhost:${port}/?${query}`);
   await page.waitForSelector('body[data-ready="true"]', { timeout: 60000 });
@@ -50,7 +60,9 @@ try {
   if (inputMode) await checkInput();
   else {
     await page.evaluate(() => window.__trees.pause());
-    const views = [...FIXED];
+    // An `edge` view sits that many metres outside the crown radius, measured on the ground plane.
+    const { height, crownRadius } = await page.evaluate(() => window.__trees.stats());
+    const views = FIXED.map((v) => (v.edge === undefined ? v : { ...v, dist: (crownRadius + v.edge) / (height * Math.cos((v.el * Math.PI) / 180)) }));
     for (let i = 0; i < randomCount; i++) views.push({ name: `random-${i}`, az: Math.random() * 360, el: 2 + Math.random() * 40, dist: 0.9 + Math.random() * 3 });
     const manifest = [];
     for (const v of views) {
@@ -60,10 +72,14 @@ try {
       manifest.push({ ...v, file, sha256: createHash('sha256').update(readFileSync(file)).digest('hex') });
     }
     const stats = await page.evaluate(() => window.__trees.stats());
-    writeFileSync(`${outDir}/manifest.json`, JSON.stringify({ query, stats, errors, views: manifest }, null, 2));
-    console.log(JSON.stringify({ outDir, stats, errors, shots: manifest.length }));
+    writeFileSync(`${outDir}/manifest.json`, JSON.stringify({ query, stats, errors, warnings, views: manifest }, null, 2));
+    console.log(JSON.stringify({ outDir, stats, errors, warnings, shots: manifest.length }));
   }
-  if (errors.length) process.exitCode = 1;
+  if (errors.length || warnings.length) {
+    for (const e of errors) console.error(`page error: ${e}`);
+    for (const w of warnings) console.error(`console warning: ${w}`);
+    process.exitCode = 1;
+  }
 } finally {
   await browser.close();
   server.kill();
@@ -163,10 +179,36 @@ async function checkInput() {
     await page.waitForTimeout(2000);
     await page.getByText('Cycle day').click();
   }, (a, b) => [b.timeOfDay > a.timeOfDay && b.timeOfDay - a.timeOfDay < 1, `time ${a.timeOfDay.toFixed(3)} -> ${b.timeOfDay.toFixed(3)} h`]);
+  // Typing a seed while "Cycle day" ticks applies nothing until Enter: no trees 1 and 12 on the way to 123.
+  const seedField = page.locator('.lil-gui input').first();
+  let midTyping = null;
+  await panel('seed-typing', async () => {
+    await page.getByText('Cycle day').click();
+    await seedField.click();
+    await seedField.fill('');
+    await page.keyboard.type('12', { delay: 100 });
+    await page.waitForTimeout(800); // several 10 Hz cycle ticks with "12" in the field
+    midTyping = await page.evaluate(() => window.__trees.params());
+    await page.keyboard.type('3');
+    await page.keyboard.press('Enter');
+    await page.getByText('Cycle day').click();
+    await page.waitForTimeout(300);
+  }, (a, b) => [midTyping.seed === a.seed && midTyping.timeOfDay !== a.timeOfDay && b.seed === 123,
+    `seed ${a.seed} -> ${midTyping.seed} while typing (time ${a.timeOfDay.toFixed(3)} -> ${midTyping.timeOfDay.toFixed(3)} h) -> ${b.seed} after Enter`]);
+  // Space on a focused "New tree" button presses the button and does not also raise the camera.
+  let spacePose = null;
+  await panel('space-on-button', async () => {
+    await page.locator('.lil-gui button', { hasText: 'New tree' }).focus();
+    const y0 = (await pose())[1];
+    await hold('Space', 600, 6);
+    await page.waitForTimeout(1500);
+    await settle();
+    spacePose = { y0, y1: (await pose())[1] };
+  }, (a, b) => [a.seed !== b.seed && Math.abs(spacePose.y1 - spacePose.y0) < 0.01, `seed ${a.seed} -> ${b.seed}, camera dy ${(spacePose.y1 - spacePose.y0).toFixed(3)} m`]);
 
   const url = page.url();
-  writeFileSync(`${outDir}/manifest.json`, JSON.stringify({ query, mode: 'input', url, errors, steps }, null, 2));
+  writeFileSync(`${outDir}/manifest.json`, JSON.stringify({ query, mode: 'input', url, errors, warnings, steps }, null, 2));
   for (const s of steps) console.log(`${s.pass ? 'PASS' : 'FAIL'} ${s.name}: ${s.detail}${s.frameChanged === false ? ' (frame unchanged)' : ''}`);
-  console.log(JSON.stringify({ outDir, errors, steps: steps.length, failed }));
+  console.log(JSON.stringify({ outDir, errors, warnings, steps: steps.length, failed }));
   if (failed) process.exitCode = 1;
 }
