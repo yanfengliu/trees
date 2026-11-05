@@ -52,7 +52,7 @@ The designated coordinator reads `../fleet/docs/skills/coordinator.md` before pl
 
 ## Gates
 
-Run before every commit, from the repo root. Node 24 is the declared version, but there is no CI: the local agent machine ran these gates on Node 22.22, so Node 24 is not CI-proven (canon R28), and `engines` is advisory there.
+Run before every commit, from the repo root. Node 24 is the declared version, but there is no CI: the local agent machine ran these gates on Node 22.22, so Node 24 is not CI-proven, and `engines` is advisory there.
 
 - `npm run build` — `tsc --noEmit` then `vite build`; must pass with no type errors.
 - `npm test` — vitest over `tests/`.
